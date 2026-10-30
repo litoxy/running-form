@@ -6,7 +6,7 @@
 
 ## 在线预览
 
-部署完成后访问：`https://<你的用户名>.github.io/running-form/`
+部署完成后访问：`https://litoxy.github.io/running-form/`
 
 ## 仓库结构
 
