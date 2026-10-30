@@ -17,6 +17,62 @@
   <body>
     <div id="root"></div>
     <script>
+      // ---- 诊断层：捕获所有报错并直接显示在页面上（移动端无需开发者工具）----
+      (function () {
+        var shown = 0;
+        function show(title, detail) {
+          shown++;
+          var badge = document.querySelector('.dbg-badge') || (function () {
+            var b = document.createElement('div');
+            b.className = 'dbg-badge';
+            document.body.appendChild(b);
+            return b;
+          })();
+          badge.style.display = 'block';
+          badge.textContent = '⚠ 已捕获 ' + shown + ' 个错误';
+          var old = document.querySelector('.err-toast');
+          if (old) old.remove();
+          var t = document.createElement('div');
+          t.className = 'err-toast';
+          var s = document.createElement('strong');
+          s.textContent = title;
+          var d = document.createElement('span');
+          d.className = 'err-detail';
+          d.textContent = (detail || '').slice(0, 400);
+          var close = document.createElement('button');
+          close.textContent = '我知道了';
+          close.onclick = function () { t.remove(); badge.style.display = 'none'; };
+          t.appendChild(s); t.appendChild(d); t.appendChild(close);
+          document.body.appendChild(t);
+        }
+        window.addEventListener('error', function (e) {
+          show('页面脚本出错', (e.message || '') + '\n@ ' + (e.filename || '').split('/').pop() + ':' + (e.lineno || ''));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          var r = e.reason || {};
+          // getUserMedia 的权限拒绝由下面的友好提示负责，避免重复弹
+          if (r && (r.name === 'NotAllowedError' || r.name === 'NotFoundError')) return;
+          show('异步操作失败', (r && (r.stack || r.message)) || String(e.reason));
+        });
+        // 摄像头/麦克风错误的友好提示
+        var origGUM = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+        if (origGUM) {
+          navigator.mediaDevices.getUserMedia = function () {
+            return origGUM.apply(navigator.mediaDevices, arguments).catch(function (err) {
+              var map = {
+                NotAllowedError: ['相机权限被拒绝', '请在 Safari 地址栏左侧的「aA」→ 网站设置 → 相机，改为「允许」，然后刷新页面重试。'],
+                NotFoundError: ['未检测到相机', '请确认没有其他 App 占用相机，然后重试。'],
+                NotReadableError: ['相机被占用', '请关闭其他使用相机的应用后重试。'],
+                OverconstrainedError: ['相机参数不受支持', '该设备不支持所请求的摄像头规格，请改用「选视频」上传。']
+              };
+              var m = map[err.name] || ['相机启动失败', '建议改用「选视频」上传一段 3–8 秒的侧身跑姿视频，效果相同。'];
+              show(m[0], m[1] + '\n[' + err.name + ']');
+              throw err;
+            });
+          };
+        }
+      })();
+
       // 首屏布局增强：拍摄指南折叠收起，操作按钮常驻视口底部
       (function () {
         function enhance() {
