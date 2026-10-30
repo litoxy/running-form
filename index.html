@@ -54,20 +54,56 @@
           if (r && (r.name === 'NotAllowedError' || r.name === 'NotFoundError')) return;
           show('异步操作失败', (r && (r.stack || r.message)) || String(e.reason));
         });
-        // 摄像头/麦克风错误的友好提示
+        // 摄像头：约束不满足时自动降级重试，避免直接失败
         var origGUM = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
         if (origGUM) {
-          navigator.mediaDevices.getUserMedia = function () {
-            return origGUM.apply(navigator.mediaDevices, arguments).catch(function (err) {
-              var map = {
-                NotAllowedError: ['相机权限被拒绝', '请在 Safari 地址栏左侧的「aA」→ 网站设置 → 相机，改为「允许」，然后刷新页面重试。'],
-                NotFoundError: ['未检测到相机', '请确认没有其他 App 占用相机，然后重试。'],
-                NotReadableError: ['相机被占用', '请关闭其他使用相机的应用后重试。'],
-                OverconstrainedError: ['相机参数不受支持', '该设备不支持所请求的摄像头规格，请改用「选视频」上传。']
+          navigator.mediaDevices.getUserMedia = function (constraints) {
+            var call = function (c) {
+              return origGUM.call(navigator.mediaDevices, c);
+            };
+            var audio = constraints && constraints.audio ? constraints.audio : false;
+
+            return call(constraints).catch(function (err) {
+              // 只对「设备不匹配」类错误降级，权限拒绝不该重试
+              if (err.name !== 'NotFoundError' && err.name !== 'OverconstrainedError' &&
+                  err.name !== 'NotReadableError' && err.name !== 'TypeError') {
+                return Promise.reject(err);
+              }
+              var retries = [
+                // 1) 去掉 facingMode，只要求基础分辨率
+                { audio: audio, video: { width: { ideal: 640 }, height: { ideal: 480 } } },
+                // 2) 只要视频，最宽松约束
+                { audio: audio, video: true },
+                // 3) 逐个尝试系统枚举到的设备
+                function () {
+                  return navigator.mediaDevices.enumerateDevices().then(function (ds) {
+                    var cams = ds.filter(function (d) { return d.kind === 'videoinput'; });
+                    return cams.reduce(function (p, d) {
+                      return p.catch(function () {
+                        return call({ audio: audio, video: { deviceId: { exact: d.deviceId } } });
+                      });
+                    }, Promise.reject(new Error('no camera')));
+                  });
+                }
+              ];
+
+              var next = function (i) {
+                if (i >= retries.length) {
+                  var map = {
+                    NotAllowedError: ['相机权限被拒绝', '请在 Safari 地址栏左侧的「aA」→「网站设置」→ 相机 改为「允许」，然后刷新页面重试。'],
+                    NotFoundError: ['这台设备没有可用的摄像头', '浏览器没有检测到任何摄像头。可以改用「选视频」— 从相册选一段 3–8 秒的侧身跑姿视频，分析效果完全相同。'],
+                    NotReadableError: ['相机被其他应用占用', '请关闭正在使用相机的 App（如相机、微信、视频会议），然后重试。'],
+                    OverconstrainedError: ['摄像头规格不匹配', '已尝试全部可用摄像头仍无法启动，请改用「选视频」上传。']
+                  };
+                  var m = map[err.name] || ['相机启动失败', '建议改用「选视频」上传一段 3–8 秒的侧身跑姿视频，效果相同。'];
+                  show(m[0], m[1] + '\n[' + err.name + ']');
+                  return Promise.reject(err);
+                }
+                var r = retries[i];
+                var attempt = typeof r === 'function' ? r() : call(r);
+                return attempt.catch(function () { return next(i + 1); });
               };
-              var m = map[err.name] || ['相机启动失败', '建议改用「选视频」上传一段 3–8 秒的侧身跑姿视频，效果相同。'];
-              show(m[0], m[1] + '\n[' + err.name + ']');
-              throw err;
+              return next(0);
             });
           };
         }
