@@ -1,0 +1,188 @@
+/* ==========================================================================
+   Form Lab — 首屏布局修正层
+   目标：操作按钮无需滚动即可触达；展示图不再吞掉整个视口。
+   仅做空间重排与细节打磨，不改动原有视觉语言（深绿 + 黄铜 + 圆角面板）。
+   ========================================================================== */
+
+:root {
+  --dock-h: 84px;
+  --dock-safe: env(safe-area-inset-bottom, 0px);
+}
+
+/* ---------- 1. 视口高度分配 ---------- */
+/* 原来是 aspect-ratio:3/4，在 440px 宽下高达 540px，把按钮顶出首屏。
+   改为受视口约束的高度：占剩余空间的 40%~48%，并设上下限。 */
+.stage {
+  aspect-ratio: auto !important;
+  height: clamp(240px, 42dvh, 380px) !important;
+}
+
+/* 小屏再收一点，保证按钮与引导文案都在首屏 */
+@media (max-height: 780px) {
+  .stage {
+    height: clamp(210px, 36dvh, 300px) !important;
+  }
+}
+
+/* 高度变矮后，示例图改用顶部对齐构图，避免人脸/躯干被裁掉 */
+.example-slider img {
+  object-position: center 30%;
+}
+
+/* ---------- 2. 头部与引导文案收紧 ---------- */
+.page.capture {
+  padding-bottom: calc(var(--dock-h) + var(--dock-safe) + 16px) !important;
+}
+
+.page-head {
+  margin-bottom: 0.6rem !important;
+}
+
+.brand {
+  font-family: "Bebas Neue", var(--font-display), sans-serif !important;
+  font-size: 1.85rem !important;
+  letter-spacing: 0.01em !important;
+  font-weight: 400 !important;
+}
+
+/* Bebas Neue 只有大写字形，用小写转大写的方式保持视觉统一 */
+.brand::first-letter {
+  text-transform: uppercase;
+}
+
+.capture-lead {
+  margin: 0 0 0.7rem !important;
+  font-size: 0.9rem !important;
+}
+
+.capture-lead strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ---------- 3. 拍摄要点：折叠面板 ---------- */
+.guide-fold {
+  margin-top: 0.85rem;
+  border-radius: var(--radius, 16px);
+  background: #1420180a;
+  box-shadow: inset 0 0 0 1px #14201812;
+  overflow: hidden;
+}
+
+.guide-fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.72rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+}
+
+.guide-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.guide-fold > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-right: 0.55rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.2s;
+  flex: none;
+}
+
+.guide-fold[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+.guide-fold > summary:hover {
+  color: var(--ink);
+}
+
+.guide-fold-badge {
+  margin-left: auto;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #1420180f;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  opacity: 0.8;
+}
+
+/* 展开后指南内部恢复原本的外观 */
+.guide-fold .capture-guide {
+  margin-top: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 1rem 1rem !important;
+}
+
+/* ---------- 4. 操作按钮：底部悬浮栏 ---------- */
+.action-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 0.7rem 16px calc(0.7rem + var(--dock-safe));
+  background: linear-gradient(
+    180deg,
+    rgba(242, 244, 240, 0) 0%,
+    rgba(242, 244, 240, 0.88) 30%,
+    rgba(242, 244, 240, 0.98) 65%
+  );
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border-top: 1px solid var(--line, #cfd6ce);
+  animation: dock-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes dock-rise {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* 悬浮栏内容与原布局同宽居中 */
+.action-dock .actions {
+  max-width: 440px;
+  margin: 0 auto !important;
+  gap: 0.7rem !important;
+}
+
+/* 主按钮加一点纵深，强调它是唯一的核心动作 */
+.action-dock .btn.primary {
+  box-shadow: 0 6px 20px rgba(20, 32, 24, 0.28);
+}
+
+/* ---------- 5. 减少动效偏好 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .action-dock {
+    animation: none;
+  }
+  .guide-fold > summary::before {
+    transition: none;
+  }
+}
+
+/* ---------- 6. 桌面宽屏：保持窄栏，但给悬浮栏留白 ---------- */
+@media (min-width: 720px) {
+  .action-dock {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}

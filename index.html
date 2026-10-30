@@ -7,13 +7,57 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <meta name="description" content="跑姿教练 — 上传跑姿视频，对比参考跑姿，获得清晰的改进建议。" />
+    <meta name="description" content="Form Lab — 上传跑姿视频，对比参考跑姿，获得清晰的改进建议。" />
     <meta name="theme-color" content="#142018" />
-    <title>跑姿教练 · 跑姿分析与改进建议</title>
+    <title>Form Lab</title>
+    <link rel="stylesheet" crossorigin href="./assets/index-Dqa7GFbi.css" />
+    <link rel="stylesheet" href="./layout.css" />
     <script type="module" crossorigin src="./assets/index-Dque4xwz.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Dqa7GFbi.css">
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // 首屏布局增强：拍摄指南折叠收起，操作按钮常驻视口底部
+      (function () {
+        function enhance() {
+          var guide = document.querySelector('.capture-guide');
+          var actions = document.querySelector('.actions');
+          if (!guide || !actions || guide.dataset.folded) return false;
+
+          // 1) 拍摄指南折叠为 details，默认收起
+          var wrap = document.createElement('details');
+          wrap.className = 'guide-fold';
+          var summary = document.createElement('summary');
+          summary.textContent = '查看拍摄要点';
+          var count = guide.querySelectorAll('.guide-dont figure').length;
+          if (count) {
+            var badge = document.createElement('span');
+            badge.className = 'guide-fold-badge';
+            badge.textContent = count + ' 条建议';
+            summary.appendChild(badge);
+          }
+          wrap.appendChild(summary);
+
+          guide.parentNode.insertBefore(wrap, guide);
+          wrap.appendChild(guide);
+          guide.dataset.folded = '1';
+
+          // 2) 操作按钮变成底部悬浮栏
+          var dock = document.createElement('div');
+          dock.className = 'action-dock';
+          actions.parentNode.insertBefore(dock, actions);
+          dock.appendChild(actions);
+
+          document.body.classList.add('has-dock');
+          return true;
+        }
+
+        // 等 React 挂载完成再接管
+        var tries = 0;
+        var timer = setInterval(function () {
+          if (enhance() || ++tries > 100) clearInterval(timer);
+        }, 100);
+      })();
+    </script>
   </body>
 </html>
