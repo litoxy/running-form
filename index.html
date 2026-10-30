@@ -62,8 +62,10 @@
               return origGUM.call(navigator.mediaDevices, c);
             };
             var audio = constraints && constraints.audio ? constraints.audio : false;
+            var traces = [];
 
             return call(constraints).catch(function (err) {
+              traces.push('原始: ' + err.name);
               // 只对「设备不匹配」类错误降级，权限拒绝不该重试
               if (err.name !== 'NotFoundError' && err.name !== 'OverconstrainedError' &&
                   err.name !== 'NotReadableError' && err.name !== 'TypeError') {
@@ -78,6 +80,8 @@
                 function () {
                   return navigator.mediaDevices.enumerateDevices().then(function (ds) {
                     var cams = ds.filter(function (d) { return d.kind === 'videoinput'; });
+                    traces.push('设备数: ' + cams.length);
+                    if (!cams.length) return Promise.reject(new Error('no camera'));
                     return cams.reduce(function (p, d) {
                       return p.catch(function () {
                         return call({ audio: audio, video: { deviceId: { exact: d.deviceId } } });
@@ -96,17 +100,32 @@
                     OverconstrainedError: ['摄像头规格不匹配', '已尝试全部可用摄像头仍无法启动，请改用「选视频」上传。']
                   };
                   var m = map[err.name] || ['相机启动失败', '建议改用「选视频」上传一段 3–8 秒的侧身跑姿视频，效果相同。'];
-                  show(m[0], m[1] + '\n[' + err.name + ']');
+                  show(m[0], m[1] + '\n[' + err.name + '] 尝试记录: ' + traces.join(' → '));
                   return Promise.reject(err);
                 }
                 var r = retries[i];
-                var attempt = typeof r === 'function' ? r() : call(r);
-                return attempt.catch(function () { return next(i + 1); });
+                var attempt;
+                try { attempt = typeof r === 'function' ? r() : call(r); }
+                catch (e) { attempt = Promise.reject(e); }
+                return attempt.catch(function (e2) { traces.push('L' + (i + 1) + ':' + (e2 && e2.name)); return next(i + 1); });
               };
               return next(0);
             });
           };
         }
+        // 暴露一个手动诊断入口，便于定位
+        window.__diag = function () {
+          var lines = [];
+          lines.push('secure=' + isSecureContext);
+          lines.push('mediaDevices=' + !!navigator.mediaDevices);
+          return navigator.mediaDevices.enumerateDevices().then(function (ds) {
+            var cams = ds.filter(function (d) { return d.kind === 'videoinput'; });
+            lines.push('videoinput=' + cams.length);
+            cams.forEach(function (d, i) { lines.push('  #' + i + ' ' + (d.label || '(未授权，无名称)')); });
+            if (!cams.length) lines.push('→ 浏览器未暴露任何摄像头');
+            return lines.join('\n');
+          }).catch(function (e) { return lines.join('\n') + '\n枚举失败: ' + e.name; });
+        };
       })();
 
       // 首屏布局增强：拍摄指南折叠收起，操作按钮常驻视口底部
